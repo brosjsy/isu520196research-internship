@@ -34,18 +34,40 @@ ARCHETYPE_LABELS = [
     ("high_risk_individual", "3 - High-Risk Individual"),
 ]
 
-# (form field, label, checked?) for the boolean toggles.
+# (form field, label, plain-language hint) for the boolean toggles.
 CHECKBOXES = [
-    ("breach_hit", "Confirmed breach hit (surface 1.0 + floor)"),
-    ("exif_gps", "EXIF GPS present in shared images (critical)"),
-    ("doc_author", "Document author name exposed (0.5)"),
-    ("device_model", "Device model visible in metadata (0.2)"),
-    ("cross_platform_match", "Username match on 3+ platforms"),
-    ("adid_not_reset", "Advertising Identifier not reset (1.0)"),
-    ("default_hostname", "Default personal device hostname (0.7)"),
-    ("wifi_probe", "Wi-Fi probe exposure confirmed (0.5)"),
-    ("linkability", "Cross-platform linkability (BAI)"),
-    ("routine_disclosure", "Public routine / schedule disclosure (BAI)"),
+    ("breach_hit", "Confirmed breach hit",
+     "Your email, phone, or address appears in a known data breach (e.g. Have "
+     "I Been Pwned). Forces the breach surface to 1.0 and floors the score at "
+     "High."),
+    ("exif_gps", "EXIF GPS in shared images",
+     "Photos you post publicly still carry GPS coordinates in their metadata, "
+     "revealing exactly where they were taken. Critical flag."),
+    ("doc_author", "Document author name exposed",
+     "Files you have shared publicly (PDFs, Office docs) contain your real "
+     "name in their author metadata."),
+    ("device_model", "Device model visible",
+     "Image metadata reveals the phone or camera model you used."),
+    ("cross_platform_match", "Username match on 3+ platforms",
+     "You reuse the same username across many sites, so an investigator can "
+     "link the accounts together (Phase 1 social signal)."),
+    ("adid_not_reset", "Advertising Identifier not reset",
+     "Your phone's ad ID has never been reset. It acts like a persistent "
+     "licence plate tracking you across apps and data-broker datasets."),
+    ("default_hostname", "Default personal device hostname",
+     "Your device name identifies you (e.g. \"Joseph's iPhone\") and is "
+     "broadcast on networks you join."),
+    ("wifi_probe", "Wi-Fi probe exposure",
+     "Your phone broadcasts the names of networks it has joined before, "
+     "leaking places you frequent."),
+    ("linkability", "Cross-platform linkability (BAI)",
+     "Same name, handle, or profile photo on 3+ platforms. A behavioural "
+     "amplifier feeding the BAI - related to, but scored separately from, the "
+     "Phase 1 username match above."),
+    ("routine_disclosure", "Public routine / schedule disclosure (BAI)",
+     "You regularly post your daily schedule, workplace, or predictable "
+     "travel, enabling pattern-of-life analysis. Adds 10 points before tier "
+     "classification."),
 ]
 
 PAGE = """<!doctype html>
@@ -67,13 +89,18 @@ PAGE = """<!doctype html>
           padding: 1.25rem; }}
   .card h2 {{ font-size: .8rem; text-transform: uppercase; letter-spacing: .04em;
              color: #57606a; margin: 0 0 1rem; }}
-  label {{ display: block; font-size: .85rem; margin: .65rem 0 .2rem; }}
+  label {{ display: block; font-size: .85rem; font-weight: 600;
+          margin: .85rem 0 .15rem; }}
+  .hint {{ color: #6e7781; font-size: .74rem; line-height: 1.35;
+          margin: 0 0 .35rem; }}
   select, input[type=number] {{ width: 100%; padding: .4rem .5rem;
     border: 1px solid #d0d7de; border-radius: 6px; font-size: .9rem;
     background: #fff; color: inherit; }}
-  .chk {{ display: flex; align-items: flex-start; gap: .5rem; margin: .55rem 0;
-         font-size: .85rem; }}
-  .chk input {{ margin-top: .15rem; }}
+  .chk {{ margin: .7rem 0; font-size: .85rem; }}
+  .chk-top {{ display: flex; align-items: flex-start; gap: .5rem;
+             font-weight: 600; }}
+  .chk input {{ margin-top: .2rem; }}
+  .chk .hint {{ margin: .12rem 0 0 1.6rem; }}
   button {{ margin-top: 1.5rem; width: 100%; padding: .7rem; font-size: 1rem;
            font-weight: 600; color: #fff; background: #1f6feb; border: 0;
            border-radius: 8px; cursor: pointer; }}
@@ -110,26 +137,46 @@ PAGE = """<!doctype html>
       <div class="card">
         <h2>Phase 1 &mdash; Surfaces</h2>
         <label>Archetype</label>
+        <p class="hint">Your threat <em>profile</em>, not your risk tolerance.
+          Civilian = everyday phishing/credential risk; Corporate Employee =
+          targeted for espionage and social engineering; High-Risk = journalist,
+          activist, executive, or official facing sophisticated actors. When
+          unsure, pick the higher one.</p>
         <select name="archetype">{archetype_options}</select>
         <label>Social media surface (0.0&ndash;1.0)</label>
+        <p class="hint">How exposed your public social media is overall: real
+          name, geotagged posts, public friend list, check-ins.
+          0 = nothing public, 1 = fully exposed.</p>
         <input type="number" name="social_media" min="0" max="1" step="0.1"
                value="{social_media}">
         <label>Public records base (0.0&ndash;1.0)</label>
+        <p class="hint">Overall estimate of how much of you sits in public
+          records and people-search sites. Use the count below for precision.</p>
         <input type="number" name="public_records" min="0" max="1" step="0.1"
                value="{public_records}">
         <label>Confirmed aggregator listings (+0.2 each)</label>
+        <p class="hint">How many data-broker / people-search sites list you
+          (Spokeo, Whitepages, etc.). Each listing adds 0.2 to the surface.</p>
         <input type="number" name="aggregator_listings" min="0" step="1"
                value="{aggregator_listings}">
         <label>Mobile footprint base (0.0&ndash;1.0)</label>
+        <p class="hint">General estimate of your phone's trackability, on top of
+          the specific mobile signals on the right (ad ID, hostname, Wi-Fi).</p>
         <input type="number" name="mobile_footprint" min="0" max="1" step="0.1"
                value="{mobile_footprint}">
       </div>
       <div class="card">
         <h2>Signals &amp; behaviour</h2>
+        <p class="hint">Tick every signal that is true of you. Each maps to a
+          specific, observable exposure described in the report's taxonomy.</p>
         {checkboxes}
         <label>Location posting frequency</label>
+        <p class="hint">How often you post your real-time location. Heavier
+          posting is the strongest behavioural amplifier.</p>
         <select name="location_frequency">{location_options}</select>
         <label>Graph density</label>
+        <p class="hint">How visible your social network is &mdash; private,
+          partly visible, or every connection public.</p>
         <select name="graph_density">{graph_options}</select>
       </div>
     </div>
@@ -153,11 +200,13 @@ def _select_options(pairs, selected):
 
 def _checkboxes(values):
     out = []
-    for field, label in CHECKBOXES:
+    for field, label, hint in CHECKBOXES:
         checked = " checked" if values.get(field) else ""
         out.append(
-            '<label class="chk"><input type="checkbox" name="%s" value="1"%s>'
-            '<span>%s</span></label>' % (field, checked, html.escape(label)))
+            '<div class="chk"><label class="chk-top">'
+            '<input type="checkbox" name="%s" value="1"%s>'
+            '<span>%s</span></label><p class="hint">%s</p></div>'
+            % (field, checked, html.escape(label), html.escape(hint)))
     return "".join(out)
 
 
