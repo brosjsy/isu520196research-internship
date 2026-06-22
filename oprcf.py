@@ -621,6 +621,8 @@ def _build_arg_parser():
                    help="0=private,1=semi-public,2=fully public")
     p.add_argument("--json", metavar="PATH",
                    help="load a profile from a JSON file (overrides other flags)")
+    p.add_argument("--detail", action="store_true",
+                   help="also print the prioritised remediation plan with links")
     return p
 
 
@@ -662,9 +664,28 @@ def main(argv=None) -> int:
             graph_density=args.graph_density,
         )
 
-    print(assess(profile).render())
+    report = assess(profile)
+    print(report.render())
+
+    if args.detail:
+        # Lazy import keeps the core framework independent of the advice layer.
+        from remediation import TIER_MEANING, build_plan
+        print("\n" + TIER_MEANING.get(report.risk_tier, ""))
+        plan = build_plan(profile, report)
+        if not plan:
+            print("\nNo active exposure signals - nothing to remediate.")
+        for i, g in enumerate(plan, 1):
+            print("\n[%d] %s  (%s)" % (i, g.title, g.severity))
+            print("    Why: %s" % g.why)
+            for step in g.steps:
+                print("      - %s" % step)
+            for label, url in g.links:
+                print("      > %s: %s" % (label, url))
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    # Import the module under its real name so enum identities match those used
+    # by sibling modules (e.g. remediation) that do `from oprcf import ...`.
+    import oprcf
+    raise SystemExit(oprcf.main())

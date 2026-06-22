@@ -31,13 +31,15 @@ top-three prioritised remediation actions.
 
 ## Files
 
-| File             | Purpose                                                        |
-|------------------|----------------------------------------------------------------|
-| `oprcf.py`       | Core module: `assess(profile) -> RiskReport`, constants, CLI.  |
-| `serve.py`       | Local interactive web app (standard-library `http.server`).    |
-| `demo.py`        | Runs the three case studies + a synthetic exposure spread.     |
-| `test_oprcf.py`  | Unit tests (run with `unittest` or `pytest`).                  |
-| `README.md`      | This file.                                                     |
+| File              | Purpose                                                        |
+|-------------------|----------------------------------------------------------------|
+| `oprcf.py`        | Core module: `assess(profile) -> RiskReport`, constants, CLI.  |
+| `serve.py`        | Local interactive web app (standard-library `http.server`).    |
+| `remediation.py`  | Prioritised remediation knowledge base + authoritative links.  |
+| `integrations.py` | Optional live breach lookups (Have I Been Pwned / Pwned Passwords). |
+| `demo.py`         | Runs the three case studies + a synthetic exposure spread.     |
+| `test_oprcf.py`   | Unit tests (run with `unittest` or `pytest`).                  |
+| `README.md`       | This file.                                                     |
 
 ## Quick start
 
@@ -66,9 +68,49 @@ python serve.py 8080       # custom port
 
 Then open the printed URL in any browser. Pick an archetype, set the surface
 scores, tick the observable signals and behavioural inputs, and click
-**Assess exposure** to see the Risk Index, tier, archetype-adjusted per-surface
-bars, triggered flags, and ranked remediation. Stop the server with `Ctrl+C`.
-It binds to `127.0.0.1` (localhost only) and has no external dependencies.
+**Assess my exposure** to see the Risk Index on a tier gauge, a plain-language
+explanation of what your tier means, archetype-adjusted per-surface bars,
+triggered flags, and a **prioritised remediation plan** — each item with why it
+matters, step-by-step actions, and links to authoritative guidance (EFF, Have I
+Been Pwned, ExifTool, data-broker opt-out lists, official platform docs). Stop
+the server with `Ctrl+C`. It binds to `127.0.0.1` (localhost only) and has no
+external dependencies.
+
+### Optional live breach lookup (Have I Been Pwned)
+
+The web app can auto-fill the breach signal by checking *your own* email
+against Have I Been Pwned. This uses the standard library only, but HIBP's
+account endpoint requires your own API key:
+
+```bash
+# Get a key at https://haveibeenpwned.com/API/Key, then:
+export HIBP_API_KEY=your-key-here      # PowerShell: $env:HIBP_API_KEY="..."
+python serve.py
+```
+
+With the key set, enter your email and tick **Look me up on Have I Been Pwned**.
+Without a key the lookup is disabled and you can set the breach signal manually.
+
+A free, **key-less** password check (Pwned Passwords, k-anonymity — only the
+first 5 chars of the SHA-1 hash leave your machine) is also available:
+
+```bash
+python integrations.py --password               # prompts, key-less
+python integrations.py --email you@example.com  # needs HIBP_API_KEY
+```
+
+> Use these only against your own accounts or with explicit consent
+> (report Section 2.9). They query already-public breach corpora and add no
+> new collection capability.
+
+### Detailed remediation from the CLI
+
+Add `--detail` to any CLI assessment to print the full prioritised remediation
+plan with links:
+
+```bash
+python oprcf.py -a high_risk_individual --exif-gps --adid-not-reset --detail
+```
 
 
 
