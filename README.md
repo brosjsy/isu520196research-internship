@@ -34,11 +34,43 @@ top-three prioritised remediation actions.
 | File             | Purpose                                                        |
 |------------------|----------------------------------------------------------------|
 | `oprcf.py`       | Core module: `assess(profile) -> RiskReport`, constants, CLI.  |
+| `serve.py`       | Local interactive web app (standard-library `http.server`).    |
 | `demo.py`        | Runs the three case studies + a synthetic exposure spread.     |
 | `test_oprcf.py`  | Unit tests (run with `unittest` or `pytest`).                  |
 | `README.md`      | This file.                                                     |
 
+## Quick start
+
+```bash
+# 1. Get the code (no install, no dependencies)
+git clone https://github.com/brosjsy/isu520196research-internship.git
+cd isu520196research-internship
+
+# 2. Try it one of three ways:
+python serve.py      # interactive web app  -> open http://127.0.0.1:8000
+python demo.py       # batch demo (case studies + synthetic spread)
+python oprcf.py -a general_civilian --breach-hit   # single CLI assessment
+```
+
+Requires only Python 3.8+ — verify with `python --version` (use `python3` on
+some systems).
+
 ## Running
+
+### Interactive web app (recommended for hands-on use)
+
+```bash
+python serve.py            # serves on http://127.0.0.1:8000
+python serve.py 8080       # custom port
+```
+
+Then open the printed URL in any browser. Pick an archetype, set the surface
+scores, tick the observable signals and behavioural inputs, and click
+**Assess exposure** to see the Risk Index, tier, archetype-adjusted per-surface
+bars, triggered flags, and ranked remediation. Stop the server with `Ctrl+C`.
+It binds to `127.0.0.1` (localhost only) and has no external dependencies.
+
+
 
 ### Demonstration
 
