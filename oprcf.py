@@ -115,10 +115,23 @@ CORRELATION_CAP: float = 100.0                  # Section 2.2.1
 # ("Cross-platform username match triggers weight multiplier x1.5").
 SOCIAL_CROSS_PLATFORM_MULTIPLIER: float = 1.5   # Table 2.1, Step 1
 
-# File Metadata sub-signal scores. Source: Table 2.1, Step 4.
+# File Metadata sub-signal scores. Source: Table 2.1, Step 4 ("GPS present =
+# 1.0 ... Document author match = 0.5. Device model only = 0.2"). The "only"
+# wording denotes tiers, so the surface takes the highest applicable score.
 FILE_GPS_SCORE: float = 1.0          # Table 2.1 Step 4 - critical flag
 FILE_AUTHOR_SCORE: float = 0.5       # Table 2.1 Step 4 - document author match
 FILE_DEVICE_SCORE: float = 0.2       # Table 2.1 Step 4 - device model only
+
+# Mobile Footprint sub-signal scores. Source: Table 2.1, Step 5 ("ADID not
+# reset = 1.0, default hostname = 0.7, Wi-Fi probes detected = 0.5. Scores
+# summed and normalized per surface" - normalised here by clamping to 1.0).
+MOBILE_ADID_SCORE: float = 1.0       # Table 2.1 Step 5 - identity anchor
+MOBILE_HOSTNAME_SCORE: float = 0.7   # Table 2.1 Step 5 - default hostname
+MOBILE_WIFI_SCORE: float = 0.5       # Table 2.1 Step 5 - Wi-Fi probe exposure
+
+# Public Records: each confirmed aggregator listing adds this to the surface
+# score. Source: Table 2.1, Step 3 ("Each confirmed aggregator adds 0.2").
+PUBLIC_RECORDS_PER_AGGREGATOR: float = 0.2  # Table 2.1 Step 3
 
 # Confirmed-breach floor on the final Risk Index. Source: Table 2.1 Step 2
 # and Section 2.3 worked example ("Single confirmed hit sets floor at 60.0").
@@ -252,6 +265,9 @@ class Profile:
     archetype: Archetype
 
     # --- Phase 1 surface base scores (0.0 - 1.0) ---
+    # social_media is the observed scaled SOCMINT score. public_records and
+    # mobile_footprint act as optional direct base scores that combine with
+    # the structured sub-signals below (Table 2.1 Steps 3 & 5).
     social_media: float = 0.0
     public_records: float = 0.0
     mobile_footprint: float = 0.0
@@ -259,14 +275,21 @@ class Profile:
     # --- Phase 1 breach surface (Table 2.1 Step 2) ---
     breach_hit: bool = False             # confirmed breach -> surface 1.0, floor
 
+    # --- Phase 1 public-records sub-signal (Table 2.1 Step 3) ---
+    aggregator_listings: int = 0         # confirmed aggregator listings, +0.2 each
+
     # --- Phase 1 file-metadata sub-signals (Table 2.1 Step 4) ---
     exif_gps: bool = False               # GPS present -> surface 1.0, critical flag
     doc_author: bool = False             # document author exposed -> 0.5
     device_model: bool = False           # device model visible -> 0.2
 
-    # --- Phase 1 social / mobile flags ---
+    # --- Phase 1 mobile-footprint sub-signals (Table 2.1 Step 5) ---
+    adid_not_reset: bool = False         # ADID not reset -> 1.0, identity anchor
+    default_hostname: bool = False       # default personal hostname -> 0.7
+    wifi_probe: bool = False             # Wi-Fi probe exposure -> 0.5
+
+    # --- Phase 1 social flag ---
     cross_platform_match: bool = False   # username match on 3+ platforms (Step 1)
-    adid_not_reset: bool = False         # identity-anchor flag (Step 5)
 
     # --- Phase 3 behavioural inputs (Table 2.3) ---
     location_frequency: int = 0          # 0=never,1=weekly,2=daily,3=real-time
@@ -285,6 +308,8 @@ class Profile:
             raise ValueError("location_frequency must be 0..3")
         if not 0 <= self.graph_density <= BAI_GRAPH_MAX:
             raise ValueError("graph_density must be 0..2")
+        if self.aggregator_listings < 0:
+            raise ValueError("aggregator_listings must be >= 0")
 
 
 @dataclass
@@ -357,23 +382,34 @@ def phase1_surface_scores(profile: Profile) -> Tuple[Dict[Surface, float], List[
         flags.append("confirmed breach hit")
 
     # --- Public Records (Step 3) ---
-    public_records = _clamp(profile.public_records)
+    # Each confirmed aggregator listing adds 0.2 to the surface score.
+    public_records = _clamp(
+        profile.public_records
+        + PUBLIC_RECORDS_PER_AGGREGATOR * profile.aggregator_listings
+    )
 
     # --- File Metadata (Step 4) ---
+    # Tiered: GPS (1.0) outranks document author (0.5) outranks device (0.2).
     if profile.exif_gps:
         file_metadata = FILE_GPS_SCORE          # critical flag -> 1.0
         flags.append("EXIF GPS present (critical)")
     else:
-        file_metadata = _clamp(
-            (FILE_AUTHOR_SCORE if profile.doc_author else 0.0)
-            + (FILE_DEVICE_SCORE if profile.device_model else 0.0)
-        )
+        file_metadata = 0.0
+        if profile.doc_author:
+            file_metadata = max(file_metadata, FILE_AUTHOR_SCORE)
+        if profile.device_model:
+            file_metadata = max(file_metadata, FILE_DEVICE_SCORE)
 
     # --- Mobile Footprint (Step 5) ---
+    # Sub-signal scores summed and normalised (clamped) per surface.
     mobile = profile.mobile_footprint
     if profile.adid_not_reset:
-        mobile = 1.0                             # identity-anchor -> surface 1.0
+        mobile += MOBILE_ADID_SCORE              # identity-anchor -> drives to 1.0
         flags.append("ADID not reset (identity anchor)")
+    if profile.default_hostname:
+        mobile += MOBILE_HOSTNAME_SCORE
+    if profile.wifi_probe:
+        mobile += MOBILE_WIFI_SCORE
     mobile = _clamp(mobile)
 
     scores = {
@@ -554,21 +590,27 @@ def _build_arg_parser():
     p.add_argument("--social-media", type=float, default=0.0,
                    help="social media surface score 0.0-1.0")
     p.add_argument("--public-records", type=float, default=0.0,
-                   help="public records surface score 0.0-1.0")
+                   help="public records base surface score 0.0-1.0")
+    p.add_argument("--aggregator-listings", type=int, default=0,
+                   help="number of confirmed data-broker listings (+0.2 each)")
     p.add_argument("--mobile-footprint", type=float, default=0.0,
-                   help="mobile footprint surface score 0.0-1.0")
+                   help="mobile footprint base surface score 0.0-1.0")
     p.add_argument("--breach-hit", action="store_true",
                    help="confirmed breach hit (sets breach surface 1.0 + floor)")
     p.add_argument("--exif-gps", action="store_true",
                    help="EXIF GPS present in shared images (critical flag)")
     p.add_argument("--doc-author", action="store_true",
-                   help="document author name exposed")
+                   help="document author name exposed (0.5)")
     p.add_argument("--device-model", action="store_true",
-                   help="device model visible in metadata")
+                   help="device model visible in metadata (0.2)")
     p.add_argument("--cross-platform-match", action="store_true",
                    help="username match on 3+ platforms (Phase 1 social)")
     p.add_argument("--adid-not-reset", action="store_true",
-                   help="Advertising Identifier not reset (identity anchor)")
+                   help="Advertising Identifier not reset (1.0, identity anchor)")
+    p.add_argument("--default-hostname", action="store_true",
+                   help="device hostname set to default personal label (0.7)")
+    p.add_argument("--wifi-probe", action="store_true",
+                   help="Wi-Fi probe exposure confirmed (0.5)")
     p.add_argument("--location-frequency", type=int, default=0,
                    help="0=never,1=weekly,2=daily,3=real-time")
     p.add_argument("--linkability", action="store_true",
@@ -604,6 +646,7 @@ def main(argv=None) -> int:
             archetype=Archetype(args.archetype),
             social_media=args.social_media,
             public_records=args.public_records,
+            aggregator_listings=args.aggregator_listings,
             mobile_footprint=args.mobile_footprint,
             breach_hit=args.breach_hit,
             exif_gps=args.exif_gps,
@@ -611,6 +654,8 @@ def main(argv=None) -> int:
             device_model=args.device_model,
             cross_platform_match=args.cross_platform_match,
             adid_not_reset=args.adid_not_reset,
+            default_hostname=args.default_hostname,
+            wifi_probe=args.wifi_probe,
             location_frequency=args.location_frequency,
             cross_platform_linkability=args.linkability,
             routine_disclosure=args.routine_disclosure,

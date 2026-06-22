@@ -40,12 +40,22 @@ class TestPhase1(unittest.TestCase):
             Profile(archetype=Archetype.GENERAL_CIVILIAN, public_records=0.6))
         self.assertAlmostEqual(scores[Surface.PUBLIC_RECORDS], 0.6)
 
-    def test_file_metadata_author_and_device(self):
+    def test_file_metadata_tiered(self):
+        # Tiered (Table 2.1 Step 4): author (0.5) outranks device (0.2).
         scores, _ = phase1_surface_scores(Profile(
             archetype=Archetype.GENERAL_CIVILIAN,
             doc_author=True, device_model=True))
-        # 0.5 (author) + 0.2 (device), Table 2.1 Step 4
-        self.assertAlmostEqual(scores[Surface.FILE_METADATA], 0.7)
+        self.assertAlmostEqual(scores[Surface.FILE_METADATA], 0.5)
+        # Device model only -> 0.2.
+        scores, _ = phase1_surface_scores(Profile(
+            archetype=Archetype.GENERAL_CIVILIAN, device_model=True))
+        self.assertAlmostEqual(scores[Surface.FILE_METADATA], 0.2)
+
+    def test_public_records_aggregators(self):
+        # Each confirmed aggregator adds 0.2 (Table 2.1 Step 3).
+        scores, _ = phase1_surface_scores(Profile(
+            archetype=Archetype.GENERAL_CIVILIAN, aggregator_listings=3))
+        self.assertAlmostEqual(scores[Surface.PUBLIC_RECORDS], 0.6)
 
     def test_adid_forces_mobile_to_one(self):
         scores, flags = phase1_surface_scores(Profile(
@@ -53,6 +63,17 @@ class TestPhase1(unittest.TestCase):
             mobile_footprint=0.2))
         self.assertEqual(scores[Surface.MOBILE_FOOTPRINT], 1.0)
         self.assertIn("ADID not reset (identity anchor)", flags)
+
+    def test_mobile_subsignals_summed(self):
+        # Hostname 0.7 + Wi-Fi 0.5 = 1.2 -> normalised (clamped) to 1.0.
+        scores, _ = phase1_surface_scores(Profile(
+            archetype=Archetype.GENERAL_CIVILIAN,
+            default_hostname=True, wifi_probe=True))
+        self.assertEqual(scores[Surface.MOBILE_FOOTPRINT], 1.0)
+        # Hostname only -> 0.7.
+        scores, _ = phase1_surface_scores(Profile(
+            archetype=Archetype.GENERAL_CIVILIAN, default_hostname=True))
+        self.assertAlmostEqual(scores[Surface.MOBILE_FOOTPRINT], 0.7)
 
     def test_baseline_weights_sum_to_unity(self):
         scores = {s: 0.0 for s in Surface}

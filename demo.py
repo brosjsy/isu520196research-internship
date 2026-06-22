@@ -44,6 +44,7 @@ def case_studies() -> List[Tuple[str, Profile]]:
         # Scenario C - Advertising Identifier de-anonymisation (2021).
         # Mobile Footprint: ADID not reset -> surface 1.0, identity anchor.
         # Senior official modelled as an Archetype 2 (Corporate Employee).
+        # ADID not reset -> Mobile Footprint surface 1.0 (Table 2.1 Step 5).
         ("Case C: Advertising ID", Profile(
             archetype=Archetype.CORPORATE_EMPLOYEE,
             adid_not_reset=True,

@@ -106,13 +106,13 @@ tier-boundary cases, and the Section 2.3 worked example end-to-end.
 
 Five surfaces, each scored `0.0–1.0`:
 
-| Surface           | Baseline weight | Critical logic                                   |
-|-------------------|-----------------|--------------------------------------------------|
-| Breach Database   | 0.30            | Confirmed hit → surface 1.0, Risk-Index floor.   |
-| Social Media      | 0.25            | Cross-platform username match (3+) flagged.      |
-| Public Records    | 0.20            | Each confirmed aggregator listing adds exposure. |
-| Mobile Footprint  | 0.20            | ADID not reset → surface 1.0 (identity anchor).  |
-| File Metadata     | 0.05 → **0.30** | EXIF GPS present → surface 1.0, High floor.       |
+| Surface           | Baseline weight | Sub-signal scoring (Table 2.1)                                   |
+|-------------------|-----------------|------------------------------------------------------------------|
+| Breach Database   | 0.30            | Confirmed hit → surface 1.0, Risk-Index floor.                   |
+| Social Media      | 0.25            | Scaled SOCMINT score; cross-platform match (3+) flagged.        |
+| Public Records    | 0.20            | Each confirmed aggregator listing adds **0.2**.                  |
+| Mobile Footprint  | 0.20            | ADID not reset **1.0**, default hostname **0.7**, Wi-Fi probe **0.5** (summed, clamped). |
+| File Metadata     | 0.05 → **0.30** | Tiered: EXIF GPS **1.0** > doc author **0.5** > device model **0.2**. GPS → High floor. |
 
 A **cross-surface correlation amplification** factor of **×1.2** (capped at
 100) is applied when **three or more** surfaces return a non-zero score.
